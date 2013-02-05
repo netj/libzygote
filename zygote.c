@@ -107,6 +107,19 @@ static ssize_t read_fd(int fd, void *ptr, size_t nbytes, int *recvfd) {
 /* end read_fd */
 
 
+#ifdef _BSD_SOURCE
+#define HAS_ON_EXIT
+#endif
+#ifdef HAS_ON_EXIT
+// Try to reply with the final exit status if possible
+// See: http://www.gnu.org/software/libc/manual/html_mono/libc.html#Cleanups-on-Exit
+static int grow_connection_fd;
+static void replyWithExitStatus(int status, void* arg) {
+    if (grow_connection_fd != -1)
+        write(grow_connection_fd, &status, sizeof(status));
+}
+#endif /* HAS_ON_EXIT */
+
 static char objvStr[BUFSIZ];
 
 // See-Also: https://github.com/martylamb/nailgun/blob/master/nailgun-client/ng.c
@@ -208,13 +221,18 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
 
     dlclose(handle);
 
-    // send back return code
+    // send back return code when this process exits
+#ifdef HAS_ON_EXIT
+    grow_connection_fd = connection_fd;
+    on_exit(replyWithExitStatus, NULL);
+#else /* HAS_ON_EXIT */
     if (write(connection_fd, &num, sizeof(num)) == -1) { perror("exitcode write"); goto error; }
+#endif /* HAS_ON_EXIT */
 
     return num;
 
 error:
-    num = -1;
+    num = EXIT_FAILURE;
     write(connection_fd, &num, sizeof(num));
     close(connection_fd);
     return -1;
