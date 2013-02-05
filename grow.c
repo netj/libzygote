@@ -1,13 +1,23 @@
 /*
+ * Copyright 2013 Jaeho Shin <netj@cs.stanford.edu>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
  * libzygote -- Zygote Process Library
  *
- * Author: Jaeho Shin <netj@cs.stanford.edu>
- * Created: 2013-02-05
- *
- * See-Also: http://stackoverflow.com/a/2358843/390044
- * See-Also: http://www.thomasstover.com/uds.html
- * See-Also: http://lists.canonical.org/pipermail/kragen-hacks/2002-January/000292.html
- * See-Also: https://github.com/martylamb/nailgun/blob/master/nailgun-client/ng.c
+ * See: https://github.com/netj/libzygote/#readme
  */
 
 #include <stdio.h>
@@ -65,37 +75,18 @@ static ssize_t write_fd(int fd, void *ptr, size_t nbytes, int sendfd) {
 /* end write_fd */
 
 
-static struct sockaddr_un unix_socket_name = {0};
-
 #ifndef UNIX_PATH_MAX
 /* uh-oh, nothing safe to do here */
-static int UNIX_PATH_MAX = sizeof(unix_socket_name.sun_path);
+#define UNIX_PATH_MAX sizeof(unix_socket_name.sun_path)
 #endif
 
-static int open_unix_fd(char *path) {
-    int socket_fd = -1;
-    unix_socket_name.sun_family = AF_UNIX;
-    if (strlen(path) >= UNIX_PATH_MAX - 1)
-        return -1;
-    strcpy(unix_socket_name.sun_path, path);
-    socket_fd = socket(PF_UNIX, SOCK_STREAM, 0);
-    if (socket_fd == -1) {
-        perror("socket");
-        return -1;
-    }
-    if (connect(socket_fd, (struct sockaddr*)&unix_socket_name, sizeof(unix_socket_name))) {
-        perror("connect");
-        close(socket_fd);
-        socket_fd = -1;
-        return -1;
-    }
-    return socket_fd;
-}
-
-
+// See-Also: http://www.thomasstover.com/uds.html
+// See-Also: https://github.com/martylamb/nailgun/blob/master/nailgun-client/ng.c
 int main(int argc, char* argv[]) {
-    int i, socket_fd;
+    struct sockaddr_un unix_socket_name = {0};
+    int socket_fd;
     char* socket_path;
+    int i;
     char* code_path;
     char* *env;
 
@@ -121,9 +112,24 @@ int main(int argc, char* argv[]) {
     socket_path = argv[1];
     code_path = argv[2];
 
-    socket_fd = open_unix_fd(socket_path);
-    if (socket_fd == -1)
+    // open socket
+    unix_socket_name.sun_family = AF_UNIX;
+    if (strlen(socket_path) >= UNIX_PATH_MAX - 1) {
+        fprintf(stderr, "%s: pathname too long", socket_path);
         return -1;
+    }
+    strcpy(unix_socket_name.sun_path, socket_path);
+    socket_fd = socket(PF_UNIX, SOCK_STREAM, 0);
+    if (socket_fd == -1) {
+        perror("socket");
+        return -1;
+    }
+    if (connect(socket_fd, (struct sockaddr*)&unix_socket_name, sizeof(unix_socket_name))) {
+        perror("connect");
+        close(socket_fd);
+        socket_fd = -1;
+        return -1;
+    }
 
     // send libzygote version
     sendNum(version, ZYGOTE_VERSION);

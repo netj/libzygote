@@ -1,12 +1,23 @@
 /*
+ * Copyright 2013 Jaeho Shin <netj@cs.stanford.edu>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
  * libzygote -- Zygote Process Library
  *
- * Author: Jaeho Shin <netj@cs.stanford.edu>
- * Created: 2013-02-05
- *
- * See-Also: http://www.thomasstover.com/uds.html
- * See-Also: http://lists.canonical.org/pipermail/kragen-hacks/2002-January/000292.html
- * See-Also: https://github.com/martylamb/nailgun/blob/master/nailgun-client/ng.c
+ * See: https://github.com/netj/libzygote/#readme
  */
 
 #include <stdio.h>
@@ -25,6 +36,11 @@
 #include <sys/prctl.h>
 #endif
 
+#define log(args...) \
+    fprintf(stderr, args)
+
+typedef int (*run_t)(int objc, void* objv[], int argc, char* argv[]);
+
 extern char* *environ;
 
 #include "zygote.h"
@@ -32,6 +48,8 @@ extern char* *environ;
 
 // read_fd/write_fd taken from Unix Network Programming
 // See-Also: http://stackoverflow.com/a/2358843/390044
+// See-Also: http://www.thomasstover.com/uds.html
+// See-Also: http://lists.canonical.org/pipermail/kragen-hacks/2002-January/000292.html
 #define HAVE_MSGHDR_MSG_CONTROL
 static ssize_t read_fd(int fd, void *ptr, size_t nbytes, int *recvfd) {
     struct msghdr   msg;
@@ -89,9 +107,9 @@ static ssize_t read_fd(int fd, void *ptr, size_t nbytes, int *recvfd) {
 /* end read_fd */
 
 
+static char objvStr[BUFSIZ];
 
-typedef int (*run_func_t)(int, char* [], int, void* []);
-
+// See-Also: https://github.com/martylamb/nailgun/blob/master/nailgun-client/ng.c
 static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
     int i;
     int fds[3];
@@ -100,7 +118,7 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
     char* code_path;
     char* *env;
     void* handle;
-    run_func_t run_func;
+    run_t run;
     char* error;
 
     int num;
@@ -117,9 +135,14 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
         buf[num] = '\0'; \
     } while (0)
 
-    FILE *orig_stderr = fdopen(dup(2), "w");
-#define log(args...) \
-    fprintf(orig_stderr, args)
+    char logbuf[BUFSIZ];
+#define resetLogBuf(args...) \
+    snprintf(logbuf, sizeof(logbuf), args)
+#define appendLogBuf(args...) \
+    do { \
+        num = strlen(logbuf); \
+        snprintf(logbuf+num, sizeof(logbuf)-num, args); \
+    } while (0)
 
     // verify libzygote version
     recvNum(version);
@@ -138,21 +161,22 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
 
     // chdir to cwd
     recvStr(cwd); chdir(buf);
-    log("zygote: cd %s\n", buf);
+    resetLogBuf("zygote: cd %s\n", buf);
 
-    // get argc, argv
+    // get argc
     recvNum(argc); argc = num;
     argv = (char* *) malloc(argc * sizeof(char*));
 
     // get code_path
     recvStr(argv_0); code_path = argv[0] = strdup(buf);
-    log("zygote: %s", code_path);
+    appendLogBuf("zygote: %s: run( %s; ", code_path, objvStr);
 
+    // get argv
     for (i=1; i<argc; i++) {
         recvStr(argv_i); argv[i] = strdup(buf);
-        log(" %s", buf);
+        appendLogBuf("%s ", argv[i]);
     }
-    log("\n");
+    appendLogBuf(");\n");
 
     // dynamically load the code
     handle = dlopen(code_path, RTLD_LAZY);
@@ -161,11 +185,13 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
         goto error;
     }
     dlerror();
-    run_func = (run_func_t) dlsym(handle, "run");
+    run = (run_t) dlsym(handle, "run");
     if ((error = dlerror()) != NULL) {
         fprintf(stderr, "dlsym: %s\n", error);
         goto error;
     }
+
+    log(logbuf);
 
     // receive and dup file descriptors
     if (read_fd(connection_fd, buf, 1, fds+2) == -1) { perror("stderr read_fd"); goto error; }
@@ -178,7 +204,7 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
         }
 
     // actually run the code
-    num = run_func(argc, argv, objc, objv);
+    num = run(objc, objv, argc, argv);
 
     dlclose(handle);
 
@@ -206,14 +232,14 @@ static void cleanup(void) {
 }
 
 int run_multiple(char* socket_path, ...) {
-    char argv0_orig[BUFSIZ];
-    char argv0_new[BUFSIZ];
-    int objc, i;
-    va_list ap;
-    void* *objv;
     struct sockaddr_un address = {0};
     socklen_t address_length;
     int socket_fd;
+    va_list ap;
+    int objc, i, num;
+    void* *objv;
+    char argv0_orig[BUFSIZ];
+    char argv0_new[BUFSIZ];
 
     if (strlen(socket_path) >= sizeof(address.sun_path)) {
         perror("run_multiple");
@@ -222,11 +248,14 @@ int run_multiple(char* socket_path, ...) {
 
     // prepare objc, objv from varargs
     objc = 0;
-    va_start(ap, socket_path); objc++; va_end(ap);
+    va_start(ap, socket_path); while (va_arg(ap, void *) != NULL) objc++; va_end(ap);
     objv = (void* *) malloc(objc * sizeof(void *));
     va_start(ap, socket_path);
-    for (i=0; i<objc; i++)
+    for (i=0; i<objc; i++) {
         objv[i] = va_arg(ap, void *);
+        num = strlen(objvStr);
+        snprintf(objvStr+num, sizeof(objvStr)-num, "%p ", objv[i]);
+    }
     va_end(ap);
 
     // open a PF_UNIX SOCK_DGRAM socket bound to socket_path
@@ -266,6 +295,7 @@ int run_multiple(char* socket_path, ...) {
     prctl(PR_SET_NAME, (unsigned long) argv0_new, 0, 0, 0);
 #endif
     // listen to the socket
+    log("zygote: run_multiple: listening to %s\n", socket_path);
     for (;;) {
         int connection_fd = accept(socket_fd, 
                         (struct sockaddr *) &address,
@@ -293,19 +323,41 @@ int run_multiple(char* socket_path, ...) {
 
 int run_once(char* socket_path, ...) {
     char* argv[] = {""};
-    int objc, i;
     va_list ap;
+    int objc, i, num;
     void* *objv;
+    void* handle;
+    char* error;
+    run_t run;
 
     // prepare objc, objv from varargs
     objc = 0;
-    va_start(ap, socket_path); objc++; va_end(ap);
+    va_start(ap, socket_path); while (va_arg(ap, void *) != NULL) objc++; va_end(ap);
     objv = (void* *) malloc(objc * sizeof(void *));
     va_start(ap, socket_path);
-    for (i=0; i<objc; i++)
+    for (i=0; i<objc; i++) {
         objv[i] = va_arg(ap, void *);
+        num = strlen(objvStr);
+        snprintf(objvStr+num, sizeof(objvStr)-num, "%p ", objv[i]);
+    }
     va_end(ap);
 
+    log("zygote: run_once: not listening to %s\n", socket_path);
+    log("zygote: run( %s; )\n", objvStr);
+
+    // look for run in the current address space
+    handle = dlopen(NULL, RTLD_LAZY);
+    if (handle == NULL) {
+        fprintf(stderr, "dlopen: %s\n", dlerror());
+        return -1;
+    }
+    dlerror();
+    run = (run_t) dlsym(handle, "run");
+    if ((error = dlerror()) != NULL) {
+        fprintf(stderr, "dlsym: %s\n", error);
+        return -1;
+    }
+
     // pass arguments to the linked run()
-    return run(1, argv, objc, objv);
+    return run(objc, objv, 1, argv);
 }
