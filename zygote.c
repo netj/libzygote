@@ -203,7 +203,7 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
         goto error;
     }
 
-    log(logbuf);
+    log("%s", logbuf);
 
     // receive and dup file descriptors
     if (read_fd(connection_fd, buf, 1, fds+2) == -1) { perror("stderr read_fd"); goto error; }
@@ -255,8 +255,10 @@ int zygote(char* socket_path, ...) {
     va_list ap;
     int objc, i, num;
     void* *objv;
+#ifdef __linux__
     char argv0_orig[BUFSIZ];
     char argv0_new[BUFSIZ];
+#endif
 
     if (strlen(socket_path) >= sizeof(address.sun_path)) {
         perror("wait_as_zygote");
