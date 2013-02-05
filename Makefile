@@ -5,19 +5,27 @@
 PREFIX = @prefix@
 CFLAGS += -Wall -fPIC
 
-all: libzygote.so grow
+soext = so
+soflag = -shared
+ifeq ($(shell uname),Darwin)
+    soext = dylib
+    soflag = -dynamiclib
+    LDFLAGS += -
+endif
+
+all: libzygote.$(soext) grow
 
 install: all
 	mkdir -p $(PREFIX)/{bin,lib,include}
-	install -m a+rx grow         $(PREFIX)/bin/
-	install -m a+rx libzygote.so $(PREFIX)/lib/
-	install -m a+r  zygote.h     $(PREFIX)/include/
+	install -m a+rx grow               $(PREFIX)/bin/
+	install -m a+rx libzygote.$(soext) $(PREFIX)/lib/
+	install -m a+r  zygote.h           $(PREFIX)/include/
 
 clean:
-	rm -f *.o libzygote.so grow
+	rm -f *.o libzygote.$(soext) grow
 
-libzygote.so: zygote.o
-	$(CC) -o $@ -shared $^ -ldl
+libzygote.$(soext): zygote.o
+	$(CC) -o $@ $(soflag) $^ -ldl
 
 grow: grow.o
 	$(CC) -o $@ $^
