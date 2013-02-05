@@ -106,7 +106,12 @@ int main(int argc, char* argv[]) {
 
     // check arguments
     if (argc < 3) {
-        fprintf(stderr, "Usage: grow  ZYGOTE_SOCKET_PATH  CODE_PATH  [ARG]...\n");
+        fprintf(stdout,
+                "grow -- Feed a runnable to grow the libzygote process\n"
+                "Usage: grow ZYGOTE_SOCKET_PATH RUNNABLE_SHARED_OBJECT_PATH [ARG]...\n"
+                "\n"
+                "For more info, see: https://github.com/netj/libzygote/#readme\n"
+                );
         return 1;
     }
     socket_path = argv[1];
