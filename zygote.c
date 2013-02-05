@@ -45,6 +45,7 @@ extern char* *environ;
 
 #include "zygote.h"
 
+static char objvStr[BUFSIZ];
 
 // read_fd/write_fd taken from Unix Network Programming
 // See-Also: http://stackoverflow.com/a/2358843/390044
@@ -119,8 +120,6 @@ static void replyWithExitStatus(int status, void* arg) {
         write(grow_connection_fd, &status, sizeof(status));
 }
 #endif /* HAS_ON_EXIT */
-
-static char objvStr[BUFSIZ];
 
 // See-Also: https://github.com/martylamb/nailgun/blob/master/nailgun-client/ng.c
 static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
@@ -249,7 +248,7 @@ static void cleanup(void) {
         unlink(zygote_socket_path);
 }
 
-int run_multiple(char* socket_path, ...) {
+int zygote(char* socket_path, ...) {
     struct sockaddr_un address = {0};
     socklen_t address_length;
     int socket_fd;
@@ -260,7 +259,7 @@ int run_multiple(char* socket_path, ...) {
     char argv0_new[BUFSIZ];
 
     if (strlen(socket_path) >= sizeof(address.sun_path)) {
-        perror("run_multiple");
+        perror("wait_as_zygote");
         return -1;
     }
 
@@ -313,7 +312,7 @@ int run_multiple(char* socket_path, ...) {
     prctl(PR_SET_NAME, (unsigned long) argv0_new, 0, 0, 0);
 #endif
     // listen to the socket
-    log("zygote: run_multiple: listening to %s\n", socket_path);
+    log("zygote: listening to %s\n", socket_path);
     for (;;) {
         int connection_fd = accept(socket_fd, 
                         (struct sockaddr *) &address,
@@ -338,8 +337,7 @@ int run_multiple(char* socket_path, ...) {
     return 0;
 }
 
-
-int run_once(char* socket_path, ...) {
+int zygote_skip(char* socket_path, ...) {
     char* argv[] = {""};
     va_list ap;
     int objc, i, num;
@@ -360,7 +358,7 @@ int run_once(char* socket_path, ...) {
     }
     va_end(ap);
 
-    log("zygote: run_once: not listening to %s\n", socket_path);
+    log("zygote: not listening to %s\n", socket_path);
     log("zygote: run( %s; )\n", objvStr);
 
     // look for run in the current address space
