@@ -135,11 +135,11 @@ int main(int argc, char* argv[]) {
     strcpy(unix_socket_name.sun_path, socket_path);
     socket_fd = socket(PF_UNIX, SOCK_STREAM, 0);
     if (socket_fd == -1) {
-        perror("socket");
+        perror(socket_path);
         return -1;
     }
     if (connect(socket_fd, (struct sockaddr*)&unix_socket_name, sizeof(unix_socket_name))) {
-        perror("connect");
+        perror(socket_path);
         close(socket_fd);
         socket_fd = -1;
         return -1;
