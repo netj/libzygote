@@ -31,7 +31,7 @@
 #ifndef _ZYGOTE_H
 #define _ZYGOTE_H
 
-#define ZYGOTE_VERSION 0x00000001
+#define ZYGOTE_VERSION 0x00000002
 
 #ifdef __cplusplus 
 extern "C" {

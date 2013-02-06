@@ -160,9 +160,12 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
     // verify libzygote version
     recvNum(version);
     if (num != ZYGOTE_VERSION) {
-        fprintf(stderr, "Fatal: expected version %d, but got %d\n", ZYGOTE_VERSION, num);
+        fprintf(stderr, "zygote: FATAL: version mismatch, expected %d, but got %d\n", ZYGOTE_VERSION, num);
         goto error;
     }
+
+    num = getpid();
+    if (write(connection_fd, &num, sizeof(num)) == -1) { perror("pid write"); goto error; }
 
     // replace environ
     recvNum(envc);
@@ -235,7 +238,7 @@ error:
     num = EXIT_FAILURE;
     write(connection_fd, &num, sizeof(num));
     close(connection_fd);
-    return -1;
+    exit(num);
 }
 
 

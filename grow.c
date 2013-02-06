@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -73,6 +74,14 @@ static ssize_t write_fd(int fd, void *ptr, size_t nbytes, int sendfd) {
     return(sendmsg(fd, &msg, 0));
 }
 /* end write_fd */
+
+
+static pid_t pid = -1;
+static void forward_signal(int sig) {
+    if (pid == -1)
+        return;
+    kill(pid, sig);
+}
 
 
 #ifndef UNIX_PATH_MAX
@@ -139,6 +148,17 @@ int main(int argc, char* argv[]) {
     // send libzygote version
     sendNum(version, ZYGOTE_VERSION);
 
+    // get pid
+    if (read(socket_fd, &pid, sizeof(pid)) == -1) { perror("pid read"); goto error; }
+    signal(SIGHUP,  forward_signal);
+    signal(SIGINT,  forward_signal);
+    signal(SIGQUIT, forward_signal);
+    signal(SIGABRT, forward_signal);
+    signal(SIGUSR1, forward_signal);
+    signal(SIGUSR2, forward_signal);
+    signal(SIGALRM, forward_signal);
+    signal(SIGTERM, forward_signal);
+
     // send environ
     for (i = 0, env = environ; *env; env++)
         i++;
@@ -168,7 +188,7 @@ int main(int argc, char* argv[]) {
     if (write_fd(socket_fd, buf, 1, 0) == -1) { perror("stdin  send_fd"); goto error; }
 
     // get exit code
-    if (read(socket_fd, &num, sizeof(num)) == -1) { perror("read"); goto error; }
+    if (read(socket_fd, &num, sizeof(num)) == -1) { perror("exitcode read"); goto error; }
     close(socket_fd);
     return num;
 
