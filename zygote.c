@@ -279,6 +279,12 @@ static void cleanup(void) {
         unlink(zygote_socket_path);
 }
 
+static void cleanupBeforeExit(int sig) {
+    cleanup();
+    exit(sig);
+}
+
+
 int zygote(char* socket_path, ...) {
     struct sockaddr_un address = {0};
     socklen_t address_length;
@@ -342,6 +348,10 @@ int zygote(char* socket_path, ...) {
     zygote_socket_fd   = socket_fd;
     zygote_socket_path = socket_path;
     atexit(cleanup);
+    // cleanup on signal
+    signal(SIGINT,  cleanupBeforeExit);
+    signal(SIGQUIT, cleanupBeforeExit);
+    signal(SIGTERM, cleanupBeforeExit);
 #ifdef __linux__
     // mark this process as a zygote in its name
     prctl(PR_GET_NAME, (unsigned long) argv0_orig, 0, 0, 0);
