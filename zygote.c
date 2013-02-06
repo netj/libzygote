@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <dlfcn.h>
 #include <signal.h>
