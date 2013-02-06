@@ -4,7 +4,7 @@ There are programs you want to run multiple times with slight variations, but
 are wasting a lot of time going through the same start up procedure, such as
 loading a set of data into memory.  Using libzygote, you can easily eliminate
 this inefficiency with minimal changes to the code.  You will first run your
-start up code once and libzygote will keep it alive as a "zygote" process.
+start up code once and libzygote will keep it alive as a "[zygote][]" process.
 Whenever you want to feed the rest of your code, you can use libzygote's `grow`
 command, and grow your zygote into an actual process.
 
@@ -222,10 +222,22 @@ grow ...
 
 ----
 
+## Credits
 Libzygote is written by [Jaeho Shin][netj], and [available as open
 source][libzygote] using [Apache 2.0
 license](http://www.apache.org/licenses/LICENSE-2.0.html).
 
+Use of "zygote" in its name was inspired by Google's [Android operating
+system][android zygote], and [a similar concept in the Chrome web
+browser][chrome zygote].  [Nailgun][] has also been very influential, which is
+a similar project aiming to avoid the start up overhead of Java VMs.
+
+
+[zygote]: http://en.wikipedia.org/wiki/Zygote
 
 [libzygote]: https://github.com/netj/libzygote/#readme
 [netj]: https://github.com/netj
+
+[android zygote]: https://android.googlesource.com/platform/libcore/+/master/dalvik/src/main/java/dalvik/system/Zygote.java
+[chrome zygote]: http://code.google.com/p/chromium/wiki/LinuxZygote
+[nailgun]: https://github.com/martylamb/nailgun
