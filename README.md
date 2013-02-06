@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
     
     code = some_actual_computation(
             a, b, c,                      /* uses a, b, c, and      */
-            atoi(argv[2]), atof(argv[3]), /* command-line arguments */
+            atoi(argv[2]), atof(argv[3])  /* command-line arguments */
         );
     
     return code;
@@ -136,7 +136,7 @@ int run(int objc, void* objv[],  int argc, char* argv[]) {
  */
     code = some_actual_computation(
             a, b, c,                      /* uses a, b, c, and      */
-            atoi(argv[1]), atof(argv[2]), /* command-line arguments */
+            atoi(argv[1]), atof(argv[2])  /* command-line arguments */
         );
     
     return code;
