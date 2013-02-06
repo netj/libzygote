@@ -25,20 +25,38 @@
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
+#include <time.h>
 #include <stdarg.h>
 #include <dlfcn.h>
-#include <signal.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/uio.h>
+#include <signal.h>
+#include <sys/wait.h>
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif
 
-#define log(args...) \
-    fprintf(stderr, args)
+static FILE* zygote_stderr = NULL;
+static char zygote_hostname[40];
+#define log(fmt, args...) \
+    do { \
+        if (zygote_stderr != NULL) { \
+            time_t t; struct tm *tmp; \
+            char timestamp[40]; \
+            t = time(NULL); \
+            tmp = localtime(&t); \
+            if (tmp == NULL) { \
+                perror("localtime"); \
+                timestamp[0] = '\0'; \
+            } else { \
+                strftime(timestamp, sizeof(timestamp), "%b %e %T", tmp); \
+            } \
+            fprintf(zygote_stderr, "%s %s " fmt, timestamp, zygote_hostname, args); \
+        } \
+    } while (0)
 
 typedef int (*run_t)(int objc, void* objv[], int argc, char* argv[]);
 
@@ -160,7 +178,7 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
     // verify libzygote version
     recvNum(version);
     if (num != ZYGOTE_VERSION) {
-        fprintf(stderr, "zygote: FATAL: version mismatch, expected %d, but got %d\n", ZYGOTE_VERSION, num);
+        fprintf(stderr, "zygote[%d]: FATAL: version mismatch, expected %d, but got %d\n", getpid(), ZYGOTE_VERSION, num);
         goto error;
     }
 
@@ -177,22 +195,21 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
 
     // chdir to cwd
     recvStr(cwd); chdir(buf);
-    resetLogBuf("zygote: cd %s\n", buf);
+    log("zygote[%d]: cd %s\n", getpid(), buf);
 
     // get argc
     recvNum(argc); argc = num;
     argv = (char* *) malloc(argc * sizeof(char*));
-
     // get code_path
     recvStr(argv_0); code_path = argv[0] = strdup(buf);
-    appendLogBuf("zygote: %s: run( %s; ", code_path, objvStr);
-
+    resetLogBuf("zygote[%d]: %s: run( %s; ", getpid(), code_path, objvStr);
     // get argv
     for (i=1; i<argc; i++) {
         recvStr(argv_i); argv[i] = strdup(buf);
         appendLogBuf("%s ", argv[i]);
     }
     appendLogBuf(");\n");
+    log("%s", logbuf);
 
     // dynamically load the code
     handle = dlopen(code_path, RTLD_LAZY);
@@ -206,8 +223,6 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
         fprintf(stderr, "dlsym: %s\n", error);
         goto error;
     }
-
-    log("%s", logbuf);
 
     // receive and dup file descriptors
     if (read_fd(connection_fd, buf, 1, fds+2) == -1) { perror("stderr read_fd"); goto error; }
@@ -242,6 +257,18 @@ error:
 }
 
 
+static void reapChild(int sig) {
+    int status;
+    pid_t childpid;
+    childpid = waitpid(-1, &status, 0);
+    if (status != 0) {
+        if (WIFEXITED(status)) {
+            log("zygote[%d]: done with exit status = %d\n", childpid, WEXITSTATUS(status));
+        } else if (WIFSIGNALED(status)) {
+            log("zygote[%d]: killed with signal %d\n", childpid, WTERMSIG(status));
+        }
+    }
+}
 
 static int   zygote_socket_fd = -1;
 static char* zygote_socket_path = NULL;
@@ -269,6 +296,9 @@ int zygote(char* socket_path, ...) {
         perror("wait_as_zygote");
         return -1;
     }
+
+    gethostname(zygote_hostname, sizeof(zygote_hostname));
+    zygote_stderr = fdopen(dup(2), "w");
 
     // prepare objc, objv from varargs
     objc = 0;
@@ -307,7 +337,7 @@ int zygote(char* socket_path, ...) {
         return -1;
     }
     // reap before children become zombies
-    signal(SIGCHLD, SIG_IGN);
+    signal(SIGCHLD, reapChild);
     // cleanup before exiting
     zygote_socket_fd   = socket_fd;
     zygote_socket_path = socket_path;
@@ -354,6 +384,9 @@ int zygote_skip(char* socket_path, ...) {
     void* handle;
     char* error;
     run_t run;
+
+    gethostname(zygote_hostname, sizeof(zygote_hostname));
+    zygote_stderr = stderr;
 
     // prepare objc, objv from varargs
     objc = 0;
