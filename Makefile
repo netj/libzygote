@@ -32,6 +32,6 @@ grow: grow.o
 	$(CC) -o $@ $^
 
 test: install
-	bash test/example.sh
+	bash test/test-example.sh
 
 .PHONY: all install clean test

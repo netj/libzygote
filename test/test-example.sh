@@ -25,7 +25,7 @@ case $(uname) in
         sharedflag=-shared
         ;;
 esac
-export CFLAGS="-I$PREFIX/include ${CFLAGS:-}"
+export CFLAGS="-g -I$PREFIX/include ${CFLAGS:-}"
 export LDFLAGS="-L$PREFIX/lib ${LDFLAGS:-}"
 export LIBS="-lzygote ${LIBS:-}"
 
