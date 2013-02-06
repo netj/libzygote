@@ -255,6 +255,7 @@ int zygote(char* socket_path, ...) {
     va_list ap;
     int objc, i, num;
     void* *objv;
+    char socket_path_real[PATH_MAX];
 #ifdef __linux__
     char argv0_orig[BUFSIZ];
     char argv0_new[BUFSIZ];
@@ -314,7 +315,9 @@ int zygote(char* socket_path, ...) {
     prctl(PR_SET_NAME, (unsigned long) argv0_new, 0, 0, 0);
 #endif
     // listen to the socket
-    log("zygote: listening to %s\n", socket_path);
+    if (realpath(socket_path, socket_path_real) == NULL)
+        strcpy(socket_path_real, socket_path);
+    log("zygote: listening to %s\n", socket_path_real);
     for (;;) {
         int connection_fd = accept(socket_fd, 
                         (struct sockaddr *) &address,
