@@ -14,11 +14,20 @@ Here=$(cd "$Here" && pwd -P)
 cd "$Here"
 
 : ${PREFIX:=$Here/../@prefix@}
-PATH="$PREFIX/bin:$PATH"
-LD_LIBRARY_PATH="$PREFIX/lib:$LD_LIBRARY_PATH"
-CFLAGS="-I$PREFIX/include ${CFLAGS:-}"
-LDFLAGS="-L$PREFIX/lib ${LDFLAGS:-}"
-LIBS="-lzygote ${LIBS:-}"
+export PATH="$PREFIX/bin:$PATH"
+case $(uname) in
+    Darwin)
+        export DYLD_LIBRARY_PATH="$PREFIX/lib:${DYLD_LIBRARY_PATH:-}"
+        sharedflag=-dynamiclib
+        ;;
+    *)
+        export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
+        sharedflag=-shared
+        ;;
+esac
+export CFLAGS="-I$PREFIX/include ${CFLAGS:-}"
+export LDFLAGS="-L$PREFIX/lib ${LDFLAGS:-}"
+export LIBS="-lzygote ${LIBS:-}"
 
 hr() {
 echo
@@ -56,7 +65,7 @@ hr
 read -p "Press Enter to proceed with Smarter Way..."
 set -x
 cc -Wall -o example-zygote  $CFLAGS -fPIC  example.c  $LDFLAGS $LIBS
-cc -Wall -o example-run.so  $CFLAGS -fPIC  example.c  $LDFLAGS -shared $LIBS
+cc -Wall -o example-run.so  $CFLAGS -fPIC  example.c  $LDFLAGS $sharedflag $LIBS
 
 ./example-zygote input_file &
 zygote_pid=$!

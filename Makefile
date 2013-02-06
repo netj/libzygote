@@ -23,6 +23,7 @@ install: all
 
 clean:
 	rm -f *.o libzygote.$(soext) grow
+	rm -f test/{example{,-{zygote,run.so}},input_file,zygote.socket}
 
 libzygote.$(soext): zygote.o
 	$(CC) -o $@ $(soflag) $^ -ldl
@@ -30,4 +31,7 @@ libzygote.$(soext): zygote.o
 grow: grow.o
 	$(CC) -o $@ $^
 
-.PHONY: all install clean
+test: install
+	bash test/example.sh
+
+.PHONY: all install clean test
