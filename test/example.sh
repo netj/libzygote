@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 set -eu
 
-: ${N:=1000000} ${M:=10}
+: ${N:=100000} ${M:=20}
 generate-input() {
-    bash -c "
     echo $(($N * $M))
-    for i in \$(seq $M)
-    do seq $N
+    for i in $(seq $M)
+    do seq $N &
     done | shuf
-    "
 }
 
 Here=$(dirname "$0")
@@ -22,17 +20,48 @@ CFLAGS="-I$PREFIX/include ${CFLAGS:-}"
 LDFLAGS="-L$PREFIX/lib ${LDFLAGS:-}"
 LIBS="-lzygote ${LIBS:-}"
 
+hr() {
+echo
+echo ------------------------------------------------------------------------
+echo
+}
+
+# generate input
+echo Generating Input...
+trap "rm -f input_file" EXIT
+generate-input >input_file
+set +e
+
+hr
+
+## without libzygote
+(
+read -p "Press Enter to proceed with The Naive Way..."
+set -x
+#cc -Wall -o example -DZYGOTE_DISABLED example.c -ldl -rdynamic
+cc -Wall -o example example-naive.c
+
+set +e
+time ./example input_file 23 4.56
+time ./example input_file 78 9.01
+time ./example input_file 90 1.23
+time ./example input_file 23 4.56
+time ./example input_file 54 3.21
+)
+
+hr
+
 ## with libzygote
 (
-echo Smarter Way
+read -p "Press Enter to proceed with Smarter Way..."
 set -x
 cc -Wall -o example-zygote  $CFLAGS -fPIC  example.c  $LDFLAGS $LIBS
 cc -Wall -o example-run.so  $CFLAGS -fPIC  example.c  $LDFLAGS -shared $LIBS
 
-generate-input | ./example-zygote /dev/stdin &
+./example-zygote input_file &
 zygote_pid=$!
-until [ -e zygote.socket ]; do echo -n .; sleep 1; done 2>/dev/null
-echo
+# wait until zygote process finishes loading
+until [ -e zygote.socket ]; do sleep .1; done 2>/dev/null
 
 set +e
 time grow zygote.socket example-run.so 23 4.56
@@ -43,21 +72,3 @@ time grow zygote.socket example-run.so 54 3.21
 
 kill $zygote_pid
 )
-
-
-## without libzygote
-(
-echo Naive Way
-set -x
-#cc -Wall -o example -DZYGOTE_DISABLED example.c -ldl -rdynamic
-cc -Wall -o example example-orig.c
-set +e
-generate-input >/tmp/input_file
-time ./example /tmp/input_file 23 4.56
-time ./example /tmp/input_file 78 9.01
-time ./example /tmp/input_file 90 1.23
-time ./example /tmp/input_file 23 4.56
-time ./example /tmp/input_file 54 3.21
-rm -f /tmp/inputfile
-)
-

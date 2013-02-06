@@ -1,5 +1,5 @@
 /* example.c -- libzygote example */
-#include "example-details.c"
+#include "example.common.c"
 
 int main(int argc, char* argv[]) {
     my_data_structure *a, *b;

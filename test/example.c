@@ -1,5 +1,5 @@
 /* example.c -- libzygote example */
-#include "example-details.c"
+#include "example.common.c"
 
 /*
    Step 0: Include zygote.h.
