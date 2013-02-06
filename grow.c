@@ -26,10 +26,11 @@
 #include <unistd.h>
 #include <signal.h>
 #include <errno.h>
+#include <limits.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <sys/time.h>
 #include <sys/uio.h>
 
 extern char* *environ;
@@ -96,7 +97,7 @@ int main(int argc, char* argv[]) {
     int socket_fd;
     char* socket_path;
     int i;
-    char* code_path;
+    char code_path[PATH_MAX];
     char* *env;
 
     int num;
@@ -124,7 +125,10 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     socket_path = argv[1];
-    code_path = argv[2];
+    if (realpath(argv[2], code_path) == NULL) {
+        perror(argv[2]);
+        return -1;
+    }
 
     // open socket
     unix_socket_name.sun_family = AF_UNIX;
