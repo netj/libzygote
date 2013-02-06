@@ -158,10 +158,15 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
         if (read(connection_fd, &num, sizeof(num)) == -1) { perror(#NAME " read"); goto error; } \
     } while (0)
 
-    char buf[BUFSIZ];
+    int buflen = BUFSIZ;
+    char *buf = (char *)malloc(buflen * sizeof(char));
 #define recvStr(NAME) \
     do { \
         recvNum(NAME length); \
+        if (num > buflen - 1) { \
+            buflen = num + 1; \
+            buf = (char *) realloc(buf, buflen * sizeof(char)); \
+        } \
         if (read(connection_fd, buf, num) == -1) { perror(#NAME " read"); goto error; } \
         buf[num] = '\0'; \
     } while (0)
@@ -247,6 +252,7 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
     if (write(connection_fd, &num, sizeof(num)) == -1) { perror("exitcode write"); goto error; }
 #endif /* HAS_ON_EXIT */
 
+    free(buf);
     return num;
 
 error:
