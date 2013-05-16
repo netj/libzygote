@@ -60,7 +60,17 @@ static char zygote_hostname[40];
 
 typedef int (*run_t)(int objc, void* objv[], int argc, char* argv[]);
 
+// Workaround for OS X not allowing shared libraries' access to environ
+// See: https://bugzilla.samba.org/show_bug.cgi?id=5412#c1
+// See: http://www.mail-archive.com/bug-gnulib@gnu.org/msg09277.html
+// See: http://www.gnu.org/software/gnulib/manual/html_node/environ.html
+// See: http://lists.apple.com/archives/Darwin-development/2003/Apr/msg00174.html
+#ifdef __APPLE__
+#include <crt_externs.h>
+#define environ (*_NSGetEnviron())
+#else
 extern char* *environ;
+#endif
 
 #include "zygote.h"
 
