@@ -371,7 +371,7 @@ int zygote(char* socket_path, ...) {
 #ifdef __linux__
     // mark this process as a zygote in its name
     prctl(PR_GET_NAME, (unsigned long) argv0_orig, 0, 0, 0);
-    sprintf(argv0_new, "_%s (zygote)", argv0_orig);
+    sprintf(argv0_new, "%s.zygote", argv0_orig);
     prctl(PR_SET_NAME, (unsigned long) argv0_new, 0, 0, 0);
 #endif
     // listen to the socket
