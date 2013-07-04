@@ -10,10 +10,19 @@ progress() {
 }
 
 progress "zygote: Launching..."
-LD_LIBRARY_PATH=${main%/*}:$LD_LIBRARY_PATH \
+LD_LIBRARY_PATH=${main%/*}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
+DYLD_LIBRARY_PATH=${main%/*}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH} \
     "$main" data.txt >out.actual &
-trap "progress 'zygote: Shutting down...'; kill -TERM $!" EXIT
-sleep 1; cat out.actual
+trap "echo >&2; progress 'zygote: Shutting down...'; kill -TERM $!" EXIT
+
+# wait until it enters zygote
+let i=1; until [ -e zygote.socket -o $i -gt 10 ]; do sleep 0.1; let ++i; done
+[ -e zygote.socket ] || exit 2
+
+! [ -e out.expected ] ||
+    diff -Nu out.expected out.actual
+cat out.actual
+progress "zygote: OK"
 echo >&2
 
 for code; do
@@ -25,8 +34,3 @@ for code; do
     progress "$tc: OK"
     echo >&2
 done
-
-progress "zygote: Verifying output..."
-! [ -e out.expected ] ||
-    diff -Nu out.expected out.actual
-progress "zygote: PASS"

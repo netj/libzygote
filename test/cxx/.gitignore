@@ -2,3 +2,6 @@
 out.actual
 *.o
 *.so
+
+*.dylib
+*.dSYM
