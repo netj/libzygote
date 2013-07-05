@@ -2,6 +2,10 @@
 # Test script for Zygote
 set -eu
 
+cd "$(dirname "$0")"
+make
+set -- [0-9][0-9]-*/{main,libcode.$so}
+
 main=$1; shift
 
 hr="################################################################################"

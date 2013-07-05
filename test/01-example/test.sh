@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -eu
 
+cd "$(dirname "$0")"
+
 : ${N:=100000} ${M:=20}
 generate-input() {
     echo $(($N * $M))
@@ -8,26 +10,6 @@ generate-input() {
     do seq $N &
     done | shuf
 }
-
-Here=$(dirname "$0")
-Here=$(cd "$Here" && pwd -P)
-cd "$Here"
-
-: ${PREFIX:=$Here/../@prefix@}
-export PATH="$PREFIX/bin:$PATH"
-case $(uname) in
-    Darwin)
-        export DYLD_LIBRARY_PATH="$PREFIX/lib:${DYLD_LIBRARY_PATH:-}"
-        sharedflag=-dynamiclib
-        ;;
-    *)
-        export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
-        sharedflag=-shared
-        ;;
-esac
-export CFLAGS="-g -I$PREFIX/include ${CFLAGS:-}"
-export LDFLAGS="-L$PREFIX/lib ${LDFLAGS:-}"
-export LIBS="-lzygote ${LIBS:-}"
 
 hr() {
 echo
@@ -64,8 +46,8 @@ hr
 (
 read -p "Press Enter to proceed with Smarter Way..."
 set -x
-cc -Wall -o example-zygote  $CFLAGS -fPIC  example.c  $LDFLAGS $LIBS
-cc -Wall -o example-run.so  $CFLAGS -fPIC  example.c  $LDFLAGS $sharedflag $LIBS
+cc -Wall -o example-zygote   $CFLAGS -fPIC  example.c  $LDFLAGS $LIBS
+cc -Wall -o example-run.$so  $CFLAGS -fPIC  example.c  $LDFLAGS $sharedflag $LIBS
 
 ./example-zygote input_file &
 zygote_pid=$!
@@ -73,11 +55,11 @@ zygote_pid=$!
 until [ -e zygote.socket ]; do sleep .1; done 2>/dev/null
 
 set +e
-time grow zygote.socket example-run.so 23 4.56
-time grow zygote.socket example-run.so 78 9.01
-time grow zygote.socket example-run.so 90 1.23
-time grow zygote.socket example-run.so 23 4.56
-time grow zygote.socket example-run.so 54 3.21
+time grow zygote.socket example-run.$so 23 4.56
+time grow zygote.socket example-run.$so 78 9.01
+time grow zygote.socket example-run.$so 90 1.23
+time grow zygote.socket example-run.$so 23 4.56
+time grow zygote.socket example-run.$so 54 3.21
 
 kill $zygote_pid
 )
