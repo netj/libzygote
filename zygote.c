@@ -27,7 +27,6 @@
 #include <limits.h>
 #include <time.h>
 #include <stdarg.h>
-#include <dlfcn.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -35,9 +34,24 @@
 #include <sys/uio.h>
 #include <signal.h>
 #include <sys/wait.h>
+// dlopen and dlsym
+#include <dlfcn.h>
+#define DLOPEN_FLAGS  RTLD_LAZY
+#ifdef __linux__
+#include <features.h>
+#if __GNUC_PREREQ (2,4) || (__GNUC__ == 2 && __GNUC_MINOR__ == 3 && __GNUC_PATCHLEVEL__ >= 4)
+// RTLD_DEEPBIND (since glibc 2.3.4) flag for dlopen allows Zygote to pick up C++ code changes from the shared object
+// See: http://linux.die.net/man/3/dlopen
+#undef DLOPEN_FLAGS
+#define DLOPEN_FLAGS  (RTLD_LAZY | RTLD_DEEPBIND)
+#else // if glibc < 2.3.4
+#warning Some deep code changes will be ignored when growing the zygote! (due to dlopen(3) not supporting RTLD_DEEPBIND flag)
+#endif // glibc >= 2.3.4
+#endif /* __linux__ */
+// decorate process name in Linux
 #ifdef __linux__
 #include <sys/prctl.h>
-#endif
+#endif /* __linux__ */
 
 static FILE* zygote_stderr = NULL;
 static char zygote_hostname[40];
@@ -70,7 +84,7 @@ typedef int (*run_t)(int objc, void* objv[], int argc, char* argv[]);
 #define environ (*_NSGetEnviron())
 #else
 extern char* *environ;
-#endif
+#endif /* __APPLE__ */
 
 #include "zygote.h"
 
@@ -227,7 +241,7 @@ static int grow_this_zygote(int connection_fd, int objc, void* objv[]) {
     log("%s", logbuf);
 
     // dynamically load the code
-    handle = dlopen(code_path, RTLD_LAZY);
+    handle = dlopen(code_path, DLOPEN_FLAGS);
     if (handle == NULL) {
         fprintf(stderr, "dlopen: %s\n", dlerror());
         goto error;
