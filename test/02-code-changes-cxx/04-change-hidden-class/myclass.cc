@@ -21,9 +21,11 @@ void MyClass::loadFile(const char* fileName) {
 }
 
 int MyClass::compute(int x) {
-    return x;
+    cout << "(compute modified)" << endl;
+    return hiddenMemberFunction(x);
 }
 
 int MyClass::hiddenMemberFunction(int x) {
-    return 0;
+    cout << "(and computing via hidden member function)" << endl;
+    return x * 2;
 }

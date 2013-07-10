@@ -23,7 +23,3 @@ void MyClass::loadFile(const char* fileName) {
 int MyClass::compute(int x) {
     return x;
 }
-
-int MyClass::hiddenMemberFunction(int x) {
-    return 0;
-}

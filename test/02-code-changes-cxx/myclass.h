@@ -8,6 +8,7 @@ using namespace std;
 class MyClass {
     private:
         list<int> data;
+        int hiddenMemberFunction(int x);
     public:
         void loadFile(const char* fileName);
         int compute(int x);
